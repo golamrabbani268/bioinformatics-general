@@ -1,0 +1,28 @@
+# Install mamba
+
+conda install -n base -c conda-forge mamba
+
+# Check version of R
+
+mamba search -c conda-forge r-base
+
+mamba create -n ENVNAME -y -c conda-forge r-base=4.1.3 rstudio r-tidyverse
+
+conda activate ENVNAME
+
+rstudio
+
+# Installing packages
+
+mamba install -y -c conda-forge -c bioconda -c defaults bioconductor-dada2
+
+
+
+
+# Simple environment setup
+
+#Creating an environment
+conda create -n r-environment r-essentials r-base
+conda activate r-environment
+
+conda remove r-essentials
