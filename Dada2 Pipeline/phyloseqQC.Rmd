@@ -1,0 +1,118 @@
+---
+title: "Phyloseq Quality Control"
+output: html_notebook
+---
+
+Process raw sequences into phyloseq object for analyses
+
+# Initialising
+```{r}
+library(tidyverse); packageVersion("tidyverse")
+#library(dada2); packageVersion("dada2")
+library(decontam); packageVersion("decontam")
+library(phyloseq); packageVersion("phyloseq")
+library(purrr); packageVersion("purrr")
+library(Biostrings); packageVersion("Biostrings")
+```
+
+# Merging Runs (Optional)
+
+If different runs were performed and need to be analysed together.
+
+```{r}
+# Import Run 1 data
+seqtab.nochloro.Run1 <- readRDS(file = "./Outputs/Run 1 final_clean_dada2_seqtable.RDS")
+taxa.Run1 <- readRDS(file = "./Outputs/Run 1 final_Silva_Taxonomy_from_dada2.RDS")
+meta.Run1 <- readRDS(file = "./Outputs/Run 1 final_meta.RDS")
+
+# Import Run 2 data
+seqtab.nochloro.Run2 <- readRDS(file = "./Outputs/Run 2 final_clean_dada2_seqtable.RDS")
+taxa.Run2 <- readRDS(file = "./Outputs/Run 2 final_Silva_Taxonomy_from_dada2.RDS")
+meta.Run2 <- readRDS(file = "./Outputs/Run 2 final_meta.RDS")
+
+# Merging
+seqtab.final <- mergeSequenceTables(table1 = seqtab.nochloro.Run1, table2 = seqtab.nochloro.Run2, repeats = "error", orderBy = NULL, tryRC = TRUE)
+
+taxa.final <- assignTaxonomy(seqtab.final, "../tax/silva_nr_v138_train_set.fa.gz", multithread=FALSE)
+taxa.final <- addSpecies(taxa.final, "../tax/silva_species_assignment_v138.fa.gz")
+
+meta.final <- merge(meta.Run1, meta.Run2, by=c("SampleID", "Location", "Species", "Structure.DNA.Extracted.from", "GPS.Coordinates", "controls"), all=TRUE)
+meta.final <- meta.final[,-6]
+row.names(meta.final) <- NULL
+row.names(meta.final) <- meta.final$SampleID
+
+write.csv(as.data.frame(seqtab.final), file = "./Outputs/Merged/SeqTable_no-chimera_no-contams_no-mitochon_no-chloro.csv", row.names = TRUE, quote = FALSE)
+saveRDS(seqtab.final, file = "./Outputs/Merged/clean_dada2_seqtable.RDS")
+saveRDS(taxa.final, file = "./Outputs/Merged/Silva_Taxonomy_from_dada2.RDS")
+saveRDS(meta.final, file = "./Outputs/Merged/meta.RDS")
+
+write.csv(t(seqtab.final), file = "./Outputs/Merged/clean_dada2_seqtable.csv", row.names = TRUE)
+write.csv(taxa.final, file = "./Outputs/Merged/Silva_Taxonomy_from_dada2.csv", row.names = TRUE)
+write.csv(meta.final, file = "./Outputs/Merged/meta.csv", row.names = TRUE)
+
+seqtab.final <- readRDS(file = "./Outputs/Merged/clean_dada2_seqtable.RDS")
+taxa.final <- readRDS(file = "./Outputs/Merged/Silva_Taxonomy_from_dada2.RDS")
+meta.final <- readRDS(file = "./Outputs/Merged/meta.RDS")
+```
+
+# Phyloseq
+
+```{r}
+library(phyloseq); packageVersion("phyloseq")
+library(Biostrings); packageVersion("Biostrings")
+library(ggplot2); packageVersion("ggplot2")
+
+theme_set(theme_bw())
+
+ps <- phyloseq(otu_table(seqtab.final, taxa_are_rows=FALSE), 
+               sample_data(meta.final), 
+               tax_table(taxa.final))
+
+# Changing actual sequences to custom ASV IDs while actual sequences stored in refseq()
+dna <- Biostrings::DNAStringSet(taxa_names(ps))
+names(dna) <- taxa_names(ps)
+ps <- merge_phyloseq(ps, dna)
+taxa_names(ps) <- paste0("ASV", seq(ntaxa(ps)))
+ps
+
+#saveRDS(ps, file = "../Output/Merged/clean_phyloseq_object.RDS")
+ps = readRDS(file = "../Output/Merged/clean_phyloseq_object.RDS")
+```
+
+# Removing less prevalent sequences
+
+```{r}
+# Compute prevalence of each feature, store as data.frame
+prevdf = apply(X = otu_table(ps),
+               MARGIN = ifelse(taxa_are_rows(ps), yes = 1, no = 2),
+               FUN = function(x){sum(x > 0)})
+
+# Add taxonomy and total read counts to this data.frame
+prevdf = data.frame(Prevalence = prevdf,
+                    TotalAbundance = taxa_sums(ps),
+                    tax_table(ps))
+
+prevdf1 = subset(prevdf, Phylum %in% get_taxa_unique(ps, "Phylum"))
+
+#  Define prevalence threshold as 5% of total samples
+prevalenceThreshold = 0.05 * nsamples(ps)
+
+# Execute prevalence filter, using `prune_taxa()` function
+keepTaxa = rownames(prevdf1)[(prevdf1$Prevalence >= prevalenceThreshold)]
+ps1 = prune_taxa(keepTaxa, ps)
+
+df.track <- as.data.frame(Sample <- row.names(meta.final))
+for (i in 1:nrow(meta.final)){
+  df.track$ps_clean[i] <- sum(ps@otu_table[(i),])
+  df.track$ps_final[i] <- sum(ps1@otu_table[(i),])
+}
+df.track
+```
+
+# Final phyloseq object
+
+```{r}
+saveRDS(ps1, file = "./Outputs/Merged/final_phyloseq_object.RDS")
+
+write.csv(df.track, file = "./Outputs/Merged/FinalTrackReads.csv", row.names = TRUE)
+```

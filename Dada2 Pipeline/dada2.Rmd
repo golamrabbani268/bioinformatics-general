@@ -1,0 +1,437 @@
+---
+title: "Dada2"
+output: html_notebook
+---
+
+# Initialising
+
+```{r}
+library(dada2); packageVersion("dada2")
+```
+
+```{r}
+path <- "./" # CHANGE ME to the directory containing the fastq files after unzipping.
+list.files(path)
+
+# Forward and reverse fastq filenames have format: SAMPLENAME_1.fastq and SAMPLENAME_2.fastq
+fnFs <- sort(list.files(path, pattern="_1.fastq.gz", full.names = TRUE))
+fnRs <- sort(list.files(path, pattern="_2.fastq.gz", full.names = TRUE))
+# Extract sample names, assuming filenames have format: SAMPLENAME_XXX.fastq
+sample.names <- sapply(strsplit(basename(fnFs), "_"), `[`, 1)
+```
+
+# Test Run
+
+## Quality Profiles
+
+```{r}
+plotQualityProfile(fnFs[1:2])
+```
+
+```{r}
+plotQualityProfile(fnRs[1:2])
+```
+
+## Filtering and Trimming
+
+```{r cache=TRUE}
+# Place filtered files in filtered/ subdirectory
+filtFs <- file.path(path, "filtered", paste0(sample.names, "_F_filt.fastq.gz"))
+filtRs <- file.path(path, "filtered", paste0(sample.names, "_R_filt.fastq.gz"))
+names(filtFs) <- sample.names
+names(filtRs) <- sample.names
+
+truncLenR1 <- 290
+truncLenR2 <- 200
+maxEER1 <- 2
+maxEER2 <- 2
+
+out <- filterAndTrim(fnFs, filtFs, fnRs, filtRs, truncLen=c(truncLenR1,truncLenR2),
+                     maxN=0, maxEE=c(maxEER1,maxEER2), truncQ=2, rm.phix=TRUE,
+                     compress=TRUE, matchIDs=TRUE, multithread=TRUE) # On Windows set multithread=FALSE
+head(out)
+```
+
+## Learn the Error Rates
+
+```{r cache=TRUE}
+errF <- learnErrors(filtFs, multithread=TRUE)
+errR <- learnErrors(filtRs, multithread=TRUE)
+plotErrors(errF, nominalQ=FALSE)
+plotErrors(errR, nominalQ=FALSE)
+```
+
+## Sample Inference
+
+```{r cache=TRUE}
+dadaFs <- dada(filtFs, err=errF, multithread=TRUE)
+dadaRs <- dada(filtRs, err=errR, multithread=TRUE)
+
+dadaFs[[1]]
+dadaRs[[1]]
+```
+
+## Merge paired reads
+
+```{r cache=TRUE}
+mergers <- mergePairs(dadaFs, filtFs, dadaRs, filtRs, verbose=TRUE)
+# Inspect the merger data.frame from the first sample
+head(mergers[[1]])
+```
+
+## Track reads through pipeline
+
+```{r cache=TRUE}
+getN <- function(x) sum(getUniques(x))
+track <- cbind(out, sapply(dadaFs, getN), sapply(dadaRs, getN), sapply(mergers, getN))
+# If processing a single sample, remove the sapply calls: e.g. replace sapply(dadaFs, getN) with getN(dadaFs)
+colnames(track) <- c("input", "filtered", "denoisedF", "denoisedR", "merged")
+rownames(track) <- sample.names
+head(track)
+metadata <- data.frame(truncLenR1, truncLenR2, maxEER1, maxEER2)
+trackAll <- data.frame()
+trackAll <- cbind(as.data.frame(sample.names), merge(metadata, track))
+```
+
+# Optimising truncLen and maxEE
+
+## truncLen=c(290, 200), maxEE=c(2,2)
+
+```{r, echo=FALSE,  cache=TRUE}
+truncLenR1 <- 290
+truncLenR2 <- 200
+maxEER1 <- 2
+maxEER2 <- 2
+
+out <- filterAndTrim(fnFs, filtFs, fnRs, filtRs, truncLen=c(truncLenR1,truncLenR2),
+                     maxN=0, maxEE=c(maxEER1,maxEER2), truncQ=2, rm.phix=TRUE,
+                     compress=TRUE, matchIDs=TRUE, multithread=TRUE) # On Windows set multithread=FALSE
+
+# Learn the Error Rates
+
+errF <- learnErrors(filtFs, multithread=TRUE)
+errR <- learnErrors(filtRs, multithread=TRUE)
+plotErrors(errF, nominalQ=FALSE)
+plotErrors(errR, nominalQ=FALSE)
+
+# Sample Inference
+
+dadaFs <- dada(filtFs, err=errF, multithread=TRUE)
+dadaRs <- dada(filtRs, err=errR, multithread=TRUE)
+
+# Merge paired reads
+
+mergers <- mergePairs(dadaFs, filtFs, dadaRs, filtRs, verbose=TRUE)
+
+# Track reads through pipeline
+
+getN <- function(x) sum(getUniques(x))
+track <- cbind(out, sapply(dadaFs, getN), sapply(dadaRs, getN), sapply(mergers, getN))
+# If processing a single sample, remove the sapply calls: e.g. replace sapply(dadaFs, getN) with getN(dadaFs)
+colnames(track) <- c("input", "filtered", "denoisedF", "denoisedR", "merged")
+rownames(track) <- sample.names
+head(track)
+metadata <- data.frame(truncLenR1, truncLenR2, maxEER1, maxEER2)
+trackAll <- rbind(trackAll, cbind(as.data.frame(sample.names), merge(metadata, track)))
+```
+
+## truncLen=c(290, 200), maxEE=c(2,5)
+
+```{r, echo=FALSE,  cache=TRUE}
+truncLenR1 <- 290
+truncLenR2 <- 200
+maxEER1 <- 2
+maxEER2 <- 5
+
+out <- filterAndTrim(fnFs, filtFs, fnRs, filtRs, truncLen=c(truncLenR1,truncLenR2),
+                     maxN=0, maxEE=c(maxEER1,maxEER2), truncQ=2, rm.phix=TRUE,
+                     compress=TRUE, matchIDs=TRUE, multithread=TRUE) # On Windows set multithread=FALSE
+
+# Learn the Error Rates
+
+errF <- learnErrors(filtFs, multithread=TRUE)
+errR <- learnErrors(filtRs, multithread=TRUE)
+plotErrors(errF, nominalQ=FALSE)
+plotErrors(errR, nominalQ=FALSE)
+
+# Sample Inference
+
+dadaFs <- dada(filtFs, err=errF, multithread=TRUE)
+dadaRs <- dada(filtRs, err=errR, multithread=TRUE)
+
+# Merge paired reads
+
+mergers <- mergePairs(dadaFs, filtFs, dadaRs, filtRs, verbose=TRUE)
+
+# Track reads through pipeline
+
+getN <- function(x) sum(getUniques(x))
+track <- cbind(out, sapply(dadaFs, getN), sapply(dadaRs, getN), sapply(mergers, getN))
+# If processing a single sample, remove the sapply calls: e.g. replace sapply(dadaFs, getN) with getN(dadaFs)
+colnames(track) <- c("input", "filtered", "denoisedF", "denoisedR", "merged")
+rownames(track) <- sample.names
+head(track)
+metadata <- data.frame(truncLenR1, truncLenR2, maxEER1, maxEER2)
+trackAll <- rbind(trackAll, cbind(as.data.frame(sample.names), merge(metadata, track)))
+```
+
+## truncLen=c(300, 250), maxEE=c(2,2)
+
+```{r, echo=FALSE,  cache=TRUE}
+truncLenR1 <- 300
+truncLenR2 <- 250
+maxEER1 <- 2
+maxEER2 <- 2
+
+out <- filterAndTrim(fnFs, filtFs, fnRs, filtRs, truncLen=c(truncLenR1,truncLenR2),
+                     maxN=0, maxEE=c(maxEER1,maxEER2), truncQ=2, rm.phix=TRUE,
+                     compress=TRUE, matchIDs=TRUE, multithread=TRUE) # On Windows set multithread=FALSE
+
+# Learn the Error Rates
+
+errF <- learnErrors(filtFs, multithread=TRUE)
+errR <- learnErrors(filtRs, multithread=TRUE)
+plotErrors(errF, nominalQ=FALSE)
+plotErrors(errR, nominalQ=FALSE)
+
+# Sample Inference
+
+dadaFs <- dada(filtFs, err=errF, multithread=TRUE)
+dadaRs <- dada(filtRs, err=errR, multithread=TRUE)
+
+# Merge paired reads
+
+mergers <- mergePairs(dadaFs, filtFs, dadaRs, filtRs, verbose=TRUE)
+
+# Track reads through pipeline
+
+getN <- function(x) sum(getUniques(x))
+track <- cbind(out, sapply(dadaFs, getN), sapply(dadaRs, getN), sapply(mergers, getN))
+# If processing a single sample, remove the sapply calls: e.g. replace sapply(dadaFs, getN) with getN(dadaFs)
+colnames(track) <- c("input", "filtered", "denoisedF", "denoisedR", "merged")
+rownames(track) <- sample.names
+head(track)
+metadata <- data.frame(truncLenR1, truncLenR2, maxEER1, maxEER2)
+trackAll <- rbind(trackAll, cbind(as.data.frame(sample.names), merge(metadata, track)))
+```
+
+## truncLen=c(300, 250), maxEE=c(2,5)
+
+```{r, echo=FALSE,  cache=TRUE}
+truncLenR1 <- 300
+truncLenR2 <- 250
+maxEER1 <- 2
+maxEER2 <- 5
+
+out <- filterAndTrim(fnFs, filtFs, fnRs, filtRs, truncLen=c(truncLenR1,truncLenR2),
+                     maxN=0, maxEE=c(maxEER1,maxEER2), truncQ=2, rm.phix=TRUE,
+                     compress=TRUE, matchIDs=TRUE, multithread=TRUE) # On Windows set multithread=FALSE
+
+# Learn the Error Rates
+
+errF <- learnErrors(filtFs, multithread=TRUE)
+errR <- learnErrors(filtRs, multithread=TRUE)
+plotErrors(errF, nominalQ=FALSE)
+plotErrors(errR, nominalQ=FALSE)
+
+# Sample Inference
+
+dadaFs <- dada(filtFs, err=errF, multithread=TRUE)
+dadaRs <- dada(filtRs, err=errR, multithread=TRUE)
+
+# Merge paired reads
+
+mergers <- mergePairs(dadaFs, filtFs, dadaRs, filtRs, verbose=TRUE)
+
+# Track reads through pipeline
+
+getN <- function(x) sum(getUniques(x))
+track <- cbind(out, sapply(dadaFs, getN), sapply(dadaRs, getN), sapply(mergers, getN))
+# If processing a single sample, remove the sapply calls: e.g. replace sapply(dadaFs, getN) with getN(dadaFs)
+colnames(track) <- c("input", "filtered", "denoisedF", "denoisedR", "merged")
+rownames(track) <- sample.names
+head(track)
+metadata <- data.frame(truncLenR1, truncLenR2, maxEER1, maxEER2)
+trackAll <- rbind(trackAll, cbind(as.data.frame(sample.names), merge(metadata, track)))
+```
+
+## Summary
+
+```{r, echo=FALSE,  cache=TRUE}
+trackAll
+```
+
+Increasing truncLen, decreases final samples while increasing maxEE increases finale samples, when the other is constant. 
+
+# Final Run
+We use truncLen=c(290, 200), maxEE=c(2,2) to maximise accuracy as the difference is minimal.
+
+## Filtering and Trimming
+
+```{r, echo=FALSE,  cache=TRUE}
+# Place filtered files in filtered/ subdirectory
+filtFs <- file.path(path, "filtered", paste0(sample.names, "_F_filt.fastq.gz"))
+filtRs <- file.path(path, "filtered", paste0(sample.names, "_R_filt.fastq.gz"))
+names(filtFs) <- sample.names
+names(filtRs) <- sample.names
+
+truncLenR1 <- 290
+truncLenR2 <- 200
+maxEER1 <- 2
+maxEER2 <- 2
+
+out <- filterAndTrim(fnFs, filtFs, fnRs, filtRs, truncLen=c(truncLenR1,truncLenR2),
+                     maxN=0, maxEE=c(maxEER1,maxEER2), truncQ=2, rm.phix=TRUE,
+                     compress=TRUE, matchIDs=TRUE, multithread=TRUE) # On Windows set multithread=FALSE
+head(out)
+```
+
+## Learn the Error Rates
+
+```{r, echo=FALSE,  cache=TRUE}
+errF <- learnErrors(filtFs, multithread=TRUE)
+errR <- learnErrors(filtRs, multithread=TRUE)
+plotErrors(errF, nominalQ=FALSE)
+plotErrors(errR, nominalQ=FALSE)
+```
+
+## Dereplication, Sample Inference, and Merging Reads
+
+```{r, echo=FALSE,  cache=TRUE}
+# Loop taking care of dereplication, sample inference and merging paired reads
+dadaFs <- vector("list", length(sample.names))
+dadaRs <- vector("list", length(sample.names))
+mergers <- vector("list", length(sample.names))
+names(dadaFs) <- sample.names
+names(dadaRs) <- sample.names
+names(mergers) <- sample.names
+for (sam in sample.names){
+  cat("Processing:", sam, "\n")
+  derepF <- derepFastq(filtFs[[sam]], verbose = TRUE)
+  derepR <- derepFastq(filtRs[[sam]], verbose = TRUE)
+  dadaFs[[sam]] <- dada(derepF, err=errF, multithread = FALSE)
+  dadaRs[[sam]] <- dada(derepR, err=errR, multithread = FALSE)
+  mergers[[sam]] <- mergePairs(dadaFs[[sam]], derepF, dadaRs[[sam]], derepR, verbose = TRUE)
+}
+head(mergers[[1]])
+```
+
+## Construct sequence table
+
+```{r, echo=FALSE,  cache=TRUE}
+seqtab <- makeSequenceTable(mergers)
+dim(seqtab)
+```
+
+## Inspect distribution of sequence lengths
+
+```{r, echo=FALSE,  cache=TRUE}
+table(nchar(getSequences(seqtab)))
+```
+
+## Remove chimeras
+
+```{r, echo=FALSE,  cache=TRUE}
+seqtab.nochim <- removeBimeraDenovo(seqtab, method="consensus", multithread=TRUE, verbose=TRUE)
+dim(seqtab.nochim)
+
+sum(seqtab.nochim)/sum(seqtab)
+```
+
+## Track reads through pipeline
+
+```{r, echo=FALSE,  cache=TRUE}
+getN <- function(x) sum(getUniques(x))
+track <- cbind(out, sapply(dadaFs, getN), sapply(dadaRs, getN), sapply(mergers, getN), rowSums(seqtab.nochim))
+# If processing a single sample, remove the sapply calls: e.g. replace sapply(dadaFs, getN) with getN(dadaFs)
+colnames(track) <- c("input", "filtered", "denoisedF", "denoisedR", "merged", "nonchim")
+rownames(track) <- sample.names
+track
+write.csv(track, file = "./Outputs/dada2track.csv")
+
+# Removing objects not required ahead to conserve RAM because some of the next steps are memory intensive
+rm(dadaFs)
+rm(dadaRs)
+rm(derepF)
+rm(derepR)
+rm(errF)
+rm(errR)
+rm(mergers)
+rm(out)
+rm(seqtab)
+rm(seqtab2)
+```
+
+# Import metadata
+
+Update this code section according to own run.
+
+```{r}
+meta = read.csv("./Metadata.csv", stringsAsFactors = FALSE)[,1:5]
+row.names(meta) <- NULL
+row.names(meta) <- meta$SampleID
+row.names(seqtab.nochim)
+
+# reorder metadata
+meta = meta[order(row.names(meta)),]
+```
+
+# Remove contaminants using controls
+
+```{r}
+library(decontam)
+
+# Find controlsamples (extraction negatives)
+meta$controls <- meta$Location == "Blank"
+
+# Find contaminants
+contams = isContaminant(seqtab.nochim, neg = meta$controls, normalize = TRUE)
+table(contams$contaminant)
+write.csv(contams, file = "./Outputs/likely_contaminants.csv", row.names = TRUE)
+
+# Remove them
+seqtab.nochim = seqtab.nochim[,(which(contams$contaminant != TRUE))]
+seqtab.nochim = seqtab.nochim[meta$controls == FALSE,]
+meta = meta[meta$controls == FALSE,]
+
+saveRDS(meta, file = "./Outputs/final_meta.RDS")
+```
+
+# Assign Taxonomy
+
+```{r}
+taxa <- assignTaxonomy(seqtab.nochim, "./tax/silva_nr_v138_train_set.fa.gz", multithread=FALSE) # CHANGE ME to taxa file location.
+# taxa <- addSpecies(taxa, "./tax/silva_species_assignment_v138.fa.gz") # Species level if required but memory intensive.
+
+write.csv(as.data.frame(seqtab.nochim), file = "./Outputs/SeqTable_no-chimera_no-contams.csv", row.names = TRUE, quote = FALSE)
+saveRDS(seqtab.nochim, file = "./Outputs/clean_dada2_seqtable.RDS")
+saveRDS(taxa, file = "./Outputs/Silva_Taxonomy_from_dada2.RDS")
+```
+
+# Removing Mitochondria and Chloroplast as we are only analysing bacteria
+
+```{r}
+#seqtab.nochim <- readRDS(file = "./Outputs/clean_dada2_seqtable.RDS")
+#taxa <- readRDS(file = "./Outputs/Silva_Taxonomy_from_dada2.RDS")
+
+# Remove "mitochondria" taxa
+is.mitochon <- taxa[,"Family"] %in% "Mitochondria"
+taxa <- taxa[!is.mitochon,]
+seqtab.nomitochon <- seqtab.nochim[,!is.mitochon]
+
+# Remove "Chloroplast" taxa
+is.chloro <- taxa[,"Order"] %in% "Chloroplast"
+taxa <- taxa[!is.chloro,]
+seqtab.nochloro <- seqtab.nomitochon[,!is.chloro]
+
+saveRDS(seqtab.nochloro, file = "./Outputs/final_clean_dada2_seqtable.RDS")
+saveRDS(taxa, file = "./Outputs/final_Silva_Taxonomy_from_dada2.RDS")
+
+# Adding Read Counts for new steps
+nochim <- rowSums(seqtab.nochim)
+nomitochon <- rowSums(seqtab.nomitochon)
+nochloro <- rowSums(seqtab.nochloro)
+netloss <- (nochim-nochloro)/nochim
+track_decontam <- data.frame(nochim, nomitochon, nochloro, netloss)
+write.csv(track_decontam, file = "./Outputs/read_counts_at_each_step_after_decontam.csv", row.names = TRUE)
+```

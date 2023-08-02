@@ -8,8 +8,7 @@ system2(cutadapt, args = "--version")
 
 library(ShortRead); packageVersion("ShortRead")
 library(seqTools); packageVersion("seqTools")
-library(microseq); packageVersion("microseq")
-
+library(dada2); packageVersion("dada2")
 
 ## Loading the sequences
 getwd()
@@ -83,6 +82,7 @@ outputStatsadapter <- capture.output(
                                fnFs.filtN[i], fnRs.filtN[i])) # input files
   }
 )
+if(!dir.exists("./Outputs")) dir.create("./Outputs")
 cat(outputStatsadapter, file="./Outputs/cutadapt_adapter_trimming_stats.txt", sep="\n", append = FALSE)
 
 # Counting adapter containing reads after removal
@@ -187,7 +187,10 @@ rbind(FWD_pl.ForwardReads = sapply(FWD_pl.orients, sequenceHits, fn = fnFs.cut_p
       REV_pl.ReverseReads = sapply(REV_pl.orients, sequenceHits, fn = fnRs.cut_pl[[1]]))
 
 # Summary calculations
+
 ## Getting all filenames
+library(microseq); packageVersion("microseq")
+
 # Forward and reverse fastq filenames have the format SAMPLENAME_X.fastq.gz
 cutFs_raw <- sort(list.files(path, pattern = "_1.fastq.gz", full.names = TRUE))
 cutRs_raw <- sort(list.files(path, pattern = "_2.fastq.gz", full.names = TRUE))
@@ -259,4 +262,4 @@ file_info <- data.frame(samples, raw_size, prefiltered_size, adaptorremoved_size
 write.csv(file_info, file = "./Outputs/Size of Files Summary (Adapter removal).csv")
 summary(file_info)
 hist(file_info$raw_size)
-hist(sample_summaries$padlinkerremoved_size)
+hist(file_info$padlinkerremoved_size)
