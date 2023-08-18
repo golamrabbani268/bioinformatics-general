@@ -35,6 +35,13 @@ theme_set(theme_bw())
 # Analysis
 ```{r}
 ps1 <- readRDS("./Output/Pa/final_phyloseq_object.RDS")
+
+#Remove empty taxa
+ps1 <- prune_taxa(taxa_sums(ps1) >0, ps1)
+
+# Remove empty samples (0 reads after all steps incl. decontam and removal of mt and cp sequences)
+ps1 <- prune_samples(sample_sums(ps1) > 0, ps1)
+
 taxtable.update <- as.data.frame(ps1@tax_table)
 for(j in 1:ncol(taxtable.update)){
   taxtable.update[,j] <- as.character(taxtable.update[,j])
